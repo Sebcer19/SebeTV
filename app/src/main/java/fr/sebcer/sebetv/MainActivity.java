@@ -63,6 +63,14 @@ public class MainActivity extends Activity {
         TextView b = text(label, 14, Color.WHITE); b.setGravity(Gravity.CENTER); b.setPadding(dp(18), dp(10), dp(18), dp(10));
         focusable(b, tag); b.setOnClickListener(v -> action.run()); return b;
     }
+    private TextView tab(String label, String tag, boolean selected, Runnable action) {
+        TextView tab = button(label, tag, action);
+        tab.setSelected(selected);
+        tab.setTextColor(selected ? accents[theme] : Color.WHITE);
+        tab.setTypeface(null, selected ? Typeface.BOLD : Typeface.NORMAL);
+        tab.setContentDescription(label + (selected ? ", sélectionné" : ""));
+        return tab;
+    }
     private boolean isEntertainment(ResolveInfo app) {
         String name = (app.activityInfo.packageName + " " + app.loadLabel(getPackageManager())).toLowerCase(Locale.ROOT);
         String[] brands = {"netflix", "youtube", "disney", "amazonvideo", "prime video", "canal", "crunchyroll", "apple", "spotify", "plex", "jellyfin", "kodi", "molotov", "france.tv", "francetv", "arte", "twitch", "max.hbo", "hbo", "tivimate", "mytf1", "tf1", "m6", "pluto", "paramount", "vlc"};
@@ -78,7 +86,8 @@ public class MainActivity extends Activity {
         LinearLayout header = new LinearLayout(this); header.setGravity(Gravity.CENTER_VERTICAL);
         TextView brand = text("SÉBÉ TV", 19, accents[theme]); brand.setTypeface(null, Typeface.BOLD);
         header.addView(brand, new LinearLayout.LayoutParams(0,-2,1));
-        addNav(header, button(allApps ? "Accueil" : "Applications", "apps", () -> { allApps = !allApps; restoreFocus="apps"; render(); }));
+        addNav(header, tab("Accueil", "home", !allApps, () -> { allApps = false; restoreFocus="home"; render(); }));
+        addNav(header, tab("Applications", "apps", allApps, () -> { allApps = true; restoreFocus="apps"; render(); }));
         addNav(header, button("Ambiance", "theme", this::chooseTheme));
         addNav(header, button("Réglages", "settings", () -> safeStart(new Intent(Settings.ACTION_SETTINGS))));
         TextClock clock = new TextClock(this); clock.setFormat24Hour("HH:mm"); clock.setFormat12Hour("HH:mm"); clock.setTextSize(18); clock.setTextColor(Color.WHITE);
@@ -86,13 +95,8 @@ public class MainActivity extends Activity {
         View rule = new View(this); rule.setBackgroundColor(0x224e5a70);
         LinearLayout.LayoutParams ruleParams = new LinearLayout.LayoutParams(-1,dp(1)); ruleParams.topMargin=dp(17); shell.addView(rule,ruleParams);
         ScrollView scroll = new ScrollView(this); scroll.setClipToPadding(false); scroll.setVerticalScrollBarEnabled(false);
-        content = new LinearLayout(this); content.setOrientation(LinearLayout.VERTICAL); content.setPadding(dp(5),0,dp(5),dp(12));
+        content = new LinearLayout(this); content.setOrientation(LinearLayout.VERTICAL); content.setPadding(dp(5),dp(20),dp(5),dp(12));
         scroll.addView(content); shell.addView(scroll,new LinearLayout.LayoutParams(-1,0,1));
-        TextView eyebrow = text(allApps ? "VOTRE COLLECTION" : "LE PLAISIR DU GRAND ÉCRAN", 10, accents[theme]);
-        eyebrow.setLetterSpacing(.2f); eyebrow.setPadding(0,dp(22),0,dp(7)); content.addView(eyebrow);
-        TextView title = text(allApps ? "Toutes vos applications" : "Un moment pour vous.", 29, Color.WHITE); title.setTypeface(null, Typeface.BOLD); content.addView(title);
-        TextView subtitle = text(allApps ? apps.size() + " applications disponibles sur votre télévision" : "Vos univers préférés, à portée de télécommande.", 13, 0xffaeb6c5);
-        subtitle.setPadding(0,dp(7),0,dp(22)); content.addView(subtitle);
         Set<String> fav = favorites();
         if (allApps) {
             int columns = Math.max(2, Math.min(5, (getResources().getConfiguration().screenWidthDp - 86) / 150));
@@ -113,16 +117,10 @@ public class MainActivity extends Activity {
             if (!selected.isEmpty()) appShelf("Vos favoris", "Votre sélection personnelle",selected,fav);
             if (!streaming.isEmpty()) appShelf("Films, séries & musique", "Explorez vos applications",streaming,fav);
             if (selected.isEmpty() && streaming.isEmpty()) appShelf("Vos applications", "Choisissez vos premiers favoris",apps,fav);
-            if (selected.isEmpty() && !apps.isEmpty()) {
-                TextView hint = text("★  Créez votre sélection : maintenez OK sur une application pour l’ajouter aux favoris.",12,0xffb9c1ce);
-                hint.setPadding(dp(16),dp(15),dp(16),dp(15)); hint.setBackground(surface(false));
-                LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1,-2); lp.topMargin=dp(16); content.addView(hint,lp);
-            }
+
         }
         if (apps.isEmpty()) content.addView(text("Aucune application TV détectée. Installez-en depuis le Play Store.",16,Color.WHITE));
-        LinearLayout footer = new LinearLayout(this); footer.setGravity(Gravity.CENTER_VERTICAL); footer.setPadding(dp(5),dp(12),dp(5),0);
-        footer.addView(text("OK  Ouvrir     •     Appui long  Favoris",11,0xff9aa6ba),new LinearLayout.LayoutParams(0,-2,1));
-        footer.addView(text("SÉBÉ TV  /  0.2",10,0xff77849b)); shell.addView(footer); setContentView(frame);
+        setContentView(frame);
         View target = shell.findViewWithTag(restoreFocus);
         if (target == null && !allApps) target = firstCard(content);
         if (target == null) target = shell.findViewWithTag("apps");
@@ -140,7 +138,7 @@ public class MainActivity extends Activity {
         if(items.isEmpty()) return;
         LinearLayout heading=new LinearLayout(this); heading.setGravity(Gravity.CENTER_VERTICAL); heading.setPadding(0,dp(4),0,dp(4));
         TextView title=text(name,17,Color.WHITE); title.setTypeface(null,Typeface.BOLD);
-        heading.addView(title,new LinearLayout.LayoutParams(0,-2,1)); heading.addView(text(description,11,0xff9ba8bd)); content.addView(heading);
+        heading.addView(title,new LinearLayout.LayoutParams(0,-2,1)); content.addView(heading);
         HorizontalScrollView shelf=new HorizontalScrollView(this); shelf.setHorizontalScrollBarEnabled(false); shelf.setClipToPadding(false);
         LinearLayout row=new LinearLayout(this); row.setPadding(dp(5),dp(7),dp(5),dp(9)); row.setClipChildren(false);
         int width=Math.max(140,(getResources().getConfiguration().screenWidthDp-110)/5);
@@ -178,7 +176,7 @@ public class MainActivity extends Activity {
         try { startActivity(intent); } catch (ActivityNotFoundException | SecurityException e) { Toast.makeText(this,"Cette application n’est pas accessible sur cette télé.",Toast.LENGTH_LONG).show(); }
     }
     @Override public void onBackPressed() {
-        if (allApps) { allApps=false; restoreFocus="apps"; render(); }
+        if (allApps) { allApps=false; restoreFocus="home"; render(); }
         else new AlertDialog.Builder(this).setTitle("Quitter Sébé TV ?").setMessage("Revenir à l’écran précédent.").setPositiveButton("Quitter",(d,w)->finish()).setNegativeButton("Rester",null).show();
     }
     private class Landscape extends View {
