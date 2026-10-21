@@ -17,6 +17,7 @@ public class MainActivity extends Activity {
     private final ArrayList<ResolveInfo> apps = new ArrayList<>();
     private LinearLayout content;
     private boolean allApps = false;
+    private String movingPackage = null;
     private String restoreFocus = "";
     private int theme;
     private Landscape landscape;
@@ -51,8 +52,9 @@ public class MainActivity extends Activity {
         TextView t = new TextView(this); t.setText(value); t.setTextSize(size); t.setTextColor(color); return t;
     }
     private GradientDrawable surface(boolean focused) {
-        GradientDrawable bg = new GradientDrawable(); bg.setColor(focused ? 0xff303644 : 0xe619202c);
-        bg.setCornerRadius(dp(12)); bg.setStroke(dp(focused ? 3 : 1), focused ? focusColor : 0x304f586d); return bg;
+        GradientDrawable bg = new GradientDrawable(); bg.setColors(new int[]{focused ? 0xf0343e50 : 0xdd202a3b, focused ? 0xf01e283b : 0xcc111a29});
+        bg.setOrientation(GradientDrawable.Orientation.TL_BR);
+        bg.setCornerRadius(dp(16)); bg.setStroke(dp(focused ? 3 : 1), focused ? focusColor : 0x304f586d); return bg;
     }
     private void focusable(View v, String tag) {
         v.setTag(tag); v.setFocusable(true); v.setClickable(true); v.setBackground(surface(false));
@@ -62,7 +64,8 @@ public class MainActivity extends Activity {
                 if (landscape != null) landscape.tintTo(appColors.getOrDefault(tag, baseTint()));
             }
             view.setBackground(surface(focus));
-            view.animate().scaleX(focus ? 1.035f : 1f).scaleY(focus ? 1.035f : 1f).setDuration(130).start();
+            view.animate().scaleX(focus ? 1.045f : 1f).scaleY(focus ? 1.045f : 1f).setDuration(180).start();
+            view.setElevation(dp(focus ? 9 : 2));
             if (focus) restoreFocus = tag;
         });
     }
@@ -86,6 +89,7 @@ public class MainActivity extends Activity {
     }
     private void render() {
         theme = prefs.getInt("theme", 0);
+        sortApps();
         focusColor = accents[theme]; appColors.clear();
         FrameLayout frame = new FrameLayout(this);
         landscape = new Landscape(this);
@@ -97,8 +101,8 @@ public class MainActivity extends Activity {
         header.addView(brand, new LinearLayout.LayoutParams(0,-2,1));
         addNav(header, tab("Accueil", "home", !allApps, () -> { allApps = false; restoreFocus="home"; render(); }));
         addNav(header, tab("Applications", "apps", allApps, () -> { allApps = true; restoreFocus="apps"; render(); }));
-        addNav(header, button("Ambiance", "theme", this::chooseTheme));
-        addNav(header, button("Réglages", "settings", () -> safeStart(new Intent(Settings.ACTION_SETTINGS))));
+        addNav(header, button("Ambiance", "theme", this::ambianceMenu));
+        addNav(header, button("Réglages", "settings", this::settingsMenu));
         TextClock clock = new TextClock(this); clock.setFormat24Hour("HH:mm"); clock.setFormat12Hour("HH:mm"); clock.setTextSize(18); clock.setTextColor(Color.WHITE);
         clock.setPadding(dp(12),0,0,0); header.addView(clock); shell.addView(header);
         View rule = new View(this); rule.setBackgroundColor(0x224e5a70);
@@ -113,6 +117,7 @@ public class MainActivity extends Activity {
         } else {
             ArrayList<ResolveInfo> selected = new ArrayList<>(), remaining = new ArrayList<>();
             for (ResolveInfo app : apps) {
+                if (hiddenApps().contains(app.activityInfo.packageName)) continue;
                 if (selection.contains(app.activityInfo.packageName)) selected.add(app);
                 else remaining.add(app);
             }
@@ -120,6 +125,7 @@ public class MainActivity extends Activity {
             addManageButton();
             appGrid(remaining, selection);
         }
+        if(movingPackage!=null) content.addView(text("Déplacement : ← → · OK pour terminer",14,accents[theme]));
         if (apps.isEmpty()) content.addView(text("Aucune application TV détectée. Installez-en depuis le Play Store.",16,Color.WHITE));
         setContentView(frame);
         View target = shell.findViewWithTag(restoreFocus);
@@ -148,32 +154,37 @@ public class MainActivity extends Activity {
         LinearLayout bar = new LinearLayout(this);
         bar.setPadding(dp(5),dp(13),dp(5),dp(13));
         TextView manage = button("Gérer mes applications", "manage", this::manageApplications);
-        bar.addView(manage); content.addView(bar);
+        bar.addView(manage);
+        TextView shortcuts=button("Raccourcis", "shortcuts", this::shortcuts);
+        LinearLayout.LayoutParams sp=new LinearLayout.LayoutParams(-2,-2); sp.leftMargin=dp(12); bar.addView(shortcuts,sp);
+        content.addView(bar);
     }
     private void manageApplications() {
         if (apps.isEmpty()) { Toast.makeText(this,"Aucune application TV disponible.",Toast.LENGTH_SHORT).show(); return; }
         // Capture a stable list; cancel/back never commits the draft.
         final ArrayList<ResolveInfo> candidates = new ArrayList<>(apps);
         final Set<String> draft = homeSelection();
+        draft.removeAll(hiddenApps());
         String[] labels = new String[candidates.size()]; boolean[] checked = new boolean[candidates.size()];
         for (int i=0;i<candidates.size();i++) {
-            ResolveInfo app = candidates.get(i); labels[i]=app.loadLabel(getPackageManager()).toString();
+            ResolveInfo app = candidates.get(i); labels[i]=app.loadLabel(getPackageManager()).toString() + (hiddenApps().contains(app.activityInfo.packageName) ? " · Masquée" : "");
             checked[i]=draft.contains(app.activityInfo.packageName);
         }
-        new AlertDialog.Builder(this).setTitle("Applications de la première rangée")
+        new AlertDialog.Builder(this).setTitle("Applications à mettre en avant")
             .setMultiChoiceItems(labels,checked,(dialog,index,isChecked)-> {
                 String pkg=candidates.get(index).activityInfo.packageName;
                 if(isChecked) draft.add(pkg); else draft.remove(pkg);
             }).setPositiveButton("Enregistrer",(dialog,which)-> {
-                prefs.edit().putStringSet("home_selection",draft).apply(); restoreFocus="manage"; render();
+                Set<String> hidden=hiddenApps(); hidden.removeAll(draft);
+                prefs.edit().putStringSet("home_selection",draft).putStringSet("hidden_apps",hidden).apply(); restoreFocus="manage"; render();
             }).setNegativeButton("Annuler",null).show();
     }
     private void appGrid(List<ResolveInfo> items, Set<String> selection) {
-        int columns = Math.max(2,Math.min(5,(getResources().getConfiguration().screenWidthDp-86)/150));
+        int columns = columns();
         for(int start=0;start<items.size();start+=columns) {
             LinearLayout row=new LinearLayout(this); row.setPadding(0,dp(7),0,dp(7)); row.setClipChildren(false);
             for(int col=0;col<columns;col++) {
-                LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(0,dp(111),1);lp.setMargins(dp(5),0,dp(5),0);
+                LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(0,dp(tileHeight()),1);lp.setMargins(dp(5),0,dp(5),0);
                 row.addView(start+col<items.size()?card(items.get(start+col),selection):new View(this),lp);
             }
             content.addView(row);
@@ -182,10 +193,23 @@ public class MainActivity extends Activity {
     private void appShelf(List<ResolveInfo> items, Set<String> fav) {
         if(items.isEmpty()) return;
         HorizontalScrollView shelf=new HorizontalScrollView(this); shelf.setHorizontalScrollBarEnabled(false); shelf.setClipToPadding(false);
-        LinearLayout row=new LinearLayout(this); row.setPadding(dp(5),dp(7),dp(5),dp(9)); row.setClipChildren(false);
-        int width=Math.max(140,(getResources().getConfiguration().screenWidthDp-110)/5);
-        for(ResolveInfo app:items) { LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(dp(width),dp(111)); lp.rightMargin=dp(12); row.addView(card(app,fav),lp); }
-        shelf.addView(row); content.addView(shelf);
+        LinearLayout pages=new LinearLayout(this); pages.setPadding(dp(5),dp(9),dp(5),dp(12)); pages.setClipChildren(false);
+        int cols=columns(), rows=prefs.getInt("home_rows",1), pageSize=cols*rows;
+        int width=getResources().getConfiguration().screenWidthDp-96;
+        for(int start=0;start<items.size();start+=pageSize) {
+            LinearLayout page=new LinearLayout(this); page.setOrientation(LinearLayout.VERTICAL); page.setClipChildren(false);
+            for(int r=0;r<rows && start+r*cols<items.size();r++) {
+                LinearLayout row=new LinearLayout(this); row.setClipChildren(false); row.setPadding(0,dp(6),0,dp(6));
+                for(int c=0;c<cols;c++) {
+                    int index=start+r*cols+c;
+                    LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(0,dp(tileHeight()),1); lp.setMargins(dp(5),0,dp(5),0);
+                    row.addView(index<items.size()?card(items.get(index),fav):new View(this),lp);
+                }
+                page.addView(row);
+            }
+            pages.addView(page,new LinearLayout.LayoutParams(dp(width),-2));
+        }
+        shelf.addView(pages); content.addView(shelf);
     }
     private void addNav(LinearLayout row, View v) { LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2,-2); lp.rightMargin=dp(12); row.addView(v,lp); }
     private View card(ResolveInfo app, Set<String> fav) {
@@ -196,19 +220,123 @@ public class MainActivity extends Activity {
         if (banner == null) banner = app.activityInfo.applicationInfo.loadBanner(getPackageManager());
         icon.setImageDrawable(banner != null ? banner : app.loadIcon(getPackageManager()));
         icon.setScaleType(ImageView.ScaleType.FIT_CENTER); icon.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
-        tile.addView(icon,new LinearLayout.LayoutParams(banner != null ? -1 : dp(48),dp(61)));
+        tile.addView(icon,new LinearLayout.LayoutParams(banner != null ? -1 : dp(tileHeight()*.48f),dp(tileHeight()*.57f)));
         String name = app.loadLabel(getPackageManager()).toString();
-        TextView label = text(name, 13, Color.WHITE); label.setGravity(Gravity.CENTER); label.setMaxLines(1); label.setEllipsize(android.text.TextUtils.TruncateAt.END); label.setPadding(0,dp(8),0,0); tile.addView(label);
-        tile.setContentDescription(name + (fav.contains(pkg) ? ", dans la première rangée" : "")); focusable(tile,pkg);
+        TextView label = text(name + (allApps && hiddenApps().contains(pkg) ? " · Masquée" : ""), 13, Color.WHITE); label.setGravity(Gravity.CENTER); label.setMaxLines(1); label.setEllipsize(android.text.TextUtils.TruncateAt.END); label.setPadding(0,dp(8),0,0); tile.addView(label);
+        tile.setContentDescription(name + (fav.contains(pkg) ? ", mise en avant" : "") + (hiddenApps().contains(pkg) ? ", masquée de l’accueil" : "")); focusable(tile,pkg);
         tile.setOnClickListener(v -> safeStart(new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LEANBACK_LAUNCHER).setComponent(new ComponentName(pkg,app.activityInfo.name)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)));
-        tile.setOnLongClickListener(v -> {
-            Set<String> current = homeSelection(); boolean exists = current.contains(pkg);
-            new AlertDialog.Builder(this).setTitle(name).setItems(new String[]{exists ? "Retirer de la première rangée" : "Ajouter à la première rangée"}, (d,which) -> {
-                if (exists) current.remove(pkg); else current.add(pkg);
-                prefs.edit().putStringSet("home_selection",current).apply(); render();
-            }).setNegativeButton("Annuler",null).show(); return true;
-        });
+        tile.setOnLongClickListener(v -> { appOptions(app); return true; });
         return tile;
+    }
+    private int columns() {
+        int desired=new int[]{6,5,4}[prefs.getInt("tile_size",1)];
+        return Math.max(2,Math.min(desired,(getResources().getConfiguration().screenWidthDp-86)/120));
+    }
+    private int tileHeight() { return new int[]{96,116,140}[prefs.getInt("tile_size",1)]; }
+    private int haloAlpha() { return new int[]{0,90,165,235}[prefs.getInt("halo",2)]; }
+    private int withAlpha(int color,int alpha) { return (color & 0xffffff) | (alpha << 24); }
+    private Set<String> hiddenApps() { return new HashSet<>(prefs.getStringSet("hidden_apps",Collections.emptySet())); }
+    private void sortApps() {
+        List<String> order=Arrays.asList(prefs.getString("app_order", "").split("\\|"));
+        apps.sort((a,b)-> {
+            int ai=order.indexOf(a.activityInfo.packageName),bi=order.indexOf(b.activityInfo.packageName);
+            if(ai<0)ai=Integer.MAX_VALUE; if(bi<0)bi=Integer.MAX_VALUE;
+            return ai!=bi?Integer.compare(ai,bi):a.loadLabel(getPackageManager()).toString().compareToIgnoreCase(b.loadLabel(getPackageManager()).toString());
+        });
+    }
+    private void appOptions(ResolveInfo app) {
+        String pkg=app.activityInfo.packageName; boolean hidden=hiddenApps().contains(pkg), selected=homeSelection().contains(pkg);
+        new AlertDialog.Builder(this).setTitle(app.loadLabel(getPackageManager()))
+            .setItems(new String[]{"Déplacer",hidden?"Afficher sur l’accueil":"Masquer de l’accueil", selected?"Retirer de la sélection":"Mettre en avant"},(d,which)-> {
+                if(which==0) {
+                    movingPackage=pkg;
+                    Toast.makeText(this,"Gauche / droite pour déplacer · OK pour terminer",Toast.LENGTH_LONG).show();
+                } else if(which==1) {
+                    Set<String> h=hiddenApps(); if(hidden)h.remove(pkg);else h.add(pkg);
+                    prefs.edit().putStringSet("hidden_apps",h).apply(); render();
+                } else {
+                    Set<String> sel=homeSelection(),h=hiddenApps();
+                    if(selected)sel.remove(pkg);else {sel.add(pkg);h.remove(pkg);}
+                    prefs.edit().putStringSet("home_selection",sel).putStringSet("hidden_apps",h).apply(); render();
+                }
+            }).setNegativeButton("Fermer",null).show();
+    }
+    @Override public boolean dispatchKeyEvent(KeyEvent event) {
+        if(movingPackage!=null) {
+            int key=event.getKeyCode();
+            if(key==KeyEvent.KEYCODE_BACK || key==KeyEvent.KEYCODE_DPAD_CENTER || key==KeyEvent.KEYCODE_ENTER) {
+                if(event.getAction()==KeyEvent.ACTION_UP) {movingPackage=null; render();}
+                return true;
+            }
+            if(key==KeyEvent.KEYCODE_DPAD_LEFT || key==KeyEvent.KEYCODE_DPAD_RIGHT) {
+                if(event.getAction()==KeyEvent.ACTION_DOWN) moveApp(key==KeyEvent.KEYCODE_DPAD_LEFT?-1:1);
+                return true;
+            }
+            if(key==KeyEvent.KEYCODE_DPAD_UP || key==KeyEvent.KEYCODE_DPAD_DOWN)return true;
+        }
+        return super.dispatchKeyEvent(event);
+    }
+    private void moveApp(int direction) {
+        Set<String> selection=homeSelection(),hidden=hiddenApps();
+        ArrayList<ResolveInfo> group=new ArrayList<>();
+        for(ResolveInfo app:apps) if(allApps || (!hidden.contains(app.activityInfo.packageName) && selection.contains(app.activityInfo.packageName)==selection.contains(movingPackage))) group.add(app);
+        int from=-1;
+        for(int i=0;i<group.size();i++)if(group.get(i).activityInfo.packageName.equals(movingPackage))from=i;
+        int to=from+direction;
+        if(from<0 || to<0 || to>=group.size())return;
+        Collections.swap(apps,apps.indexOf(group.get(from)),apps.indexOf(group.get(to)));
+        ArrayList<String> order=new ArrayList<>();for(ResolveInfo app:apps)order.add(app.activityInfo.packageName);
+        prefs.edit().putString("app_order",android.text.TextUtils.join("|",order)).apply();
+        restoreFocus=movingPackage; render();
+    }
+    private void preference(String title,String key,String[] labels,int fallback) {
+        new AlertDialog.Builder(this).setTitle(title).setSingleChoiceItems(labels,prefs.getInt(key,fallback),(d,which)-> {
+            prefs.edit().putInt(key,which).apply();d.dismiss();render();
+        }).setNegativeButton("Annuler",null).show();
+    }
+    private void settingsMenu() {
+        new AlertDialog.Builder(this).setTitle("Personnaliser Sébé TV").setItems(new String[]{"Gérer mes applications","Taille des tuiles","Nombre de rangées mises en avant","Intensité du halo","Réglages de la télévision"},(d,which)-> {
+            if(which==0)manageApplications();
+            if(which==1)preference("Taille des tuiles","tile_size",new String[]{"Petites","Moyennes","Grandes"},1);
+            if(which==2)new AlertDialog.Builder(this).setTitle("Rangées mises en avant").setSingleChoiceItems(new String[]{"1 rangée","2 rangées","3 rangées"},prefs.getInt("home_rows",1)-1,(dialog,index)-> {prefs.edit().putInt("home_rows",index+1).apply();dialog.dismiss();render();}).setNegativeButton("Annuler",null).show();
+            if(which==3)preference("Intensité du halo","halo",new String[]{"Désactivé","Doux","Équilibré","Intense"},2);
+            if(which==4)safeStart(new Intent(Settings.ACTION_SETTINGS));
+        }).setNegativeButton("Fermer",null).show();
+    }
+    private void ambianceMenu() {
+        new AlertDialog.Builder(this).setTitle("Ambiance").setItems(new String[]{"Choisir le thème","Intensité du halo","Ambiance plein écran"},(d,which)-> {
+            if(which==0)chooseTheme();
+            if(which==1)preference("Intensité du halo","halo",new String[]{"Désactivé","Doux","Équilibré","Intense"},2);
+            if(which==2)ambient();
+        }).setNegativeButton("Fermer",null).show();
+    }
+    private void ambient() {
+        Dialog dialog=new Dialog(this,android.R.style.Theme_Material_NoActionBar_Fullscreen);
+        Landscape background=new Landscape(this); background.setFocusable(true); background.setClickable(true);
+        background.setOnClickListener(v->dialog.dismiss());
+        dialog.setContentView(background); dialog.show();
+        dialog.getWindow().setLayout(-1,-1);
+        dialog.getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_FULLSCREEN|View.SYSTEM_UI_FLAG_HIDE_NAVIGATION|View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY);
+        background.requestFocus();
+        Toast.makeText(this,"OK ou Retour pour quitter l’ambiance",Toast.LENGTH_SHORT).show();
+    }
+    private void shortcuts() {
+        new AlertDialog.Builder(this).setTitle("Raccourcis TV").setItems(new String[]{"Entrées HDMI","Réglages TV","Ambiance plein écran"},(d,which)-> {
+            if(which==0)inputs();if(which==1)safeStart(new Intent(Settings.ACTION_SETTINGS));if(which==2)ambient();
+        }).setNegativeButton("Fermer",null).show();
+    }
+    private void inputs() {
+        android.media.tv.TvInputManager manager=(android.media.tv.TvInputManager)getSystemService(Context.TV_INPUT_SERVICE);
+        ArrayList<android.media.tv.TvInputInfo> inputs=new ArrayList<>(); ArrayList<String> labels=new ArrayList<>();
+        try {
+            if(manager!=null)for(android.media.tv.TvInputInfo input:manager.getTvInputList())if(input.isPassthroughInput()) {
+                inputs.add(input); labels.add(input.loadLabel(this).toString());
+            }
+        } catch(SecurityException ignored) { }
+        if(inputs.isEmpty()) {
+            new AlertDialog.Builder(this).setTitle("Entrées TV").setMessage("Cette télévision ne partage pas ses entrées avec Sébé TV. Utilisez la touche Source / Input de la télécommande.").setPositiveButton("Réglages TV",(d,w)->safeStart(new Intent(Settings.ACTION_SETTINGS))).setNegativeButton("Fermer",null).show();return;
+        }
+        new AlertDialog.Builder(this).setTitle("Entrées TV / HDMI").setItems(labels.toArray(new String[0]),(d,which)->safeStart(new Intent(Intent.ACTION_VIEW,android.media.tv.TvContract.buildChannelUriForPassthroughInput(inputs.get(which).getId())))).setNegativeButton("Fermer",null).show();
     }
     private int baseTint() { return new int[]{0xff604b35,0xff354c84,0xff2c675e}[theme]; }
     private int colorFor(ResolveInfo app) {
@@ -252,13 +380,13 @@ public class MainActivity extends Activity {
             if (target == tint) return;
             if (getWidth()==0) { tint=target; return; }
             tintAnimation = android.animation.ValueAnimator.ofArgb(tint,target);
-            tintAnimation.setDuration(230);
+            tintAnimation.setDuration(420);
             tintAnimation.addUpdateListener(animation -> { tint=(Integer)animation.getAnimatedValue(); updateGlow(); invalidate(); });
             tintAnimation.start();
         }
         private void updateGlow() {
-            if(getWidth()>0) glow=new RadialGradient(getWidth()*.78f,getHeight()*.25f,getWidth()*.82f,
-                new int[]{tint, (tint & 0x00ffffff) | 0x66000000,0x00151e30},new float[]{0f,.52f,1f},Shader.TileMode.CLAMP);
+            if(getWidth()>0) glow=new RadialGradient(getWidth()*.62f,getHeight()*.3f,getWidth()*1.05f,
+                new int[]{withAlpha(tint,haloAlpha()), withAlpha(tint,haloAlpha()/2),0x00151e30},new float[]{0f,.52f,1f},Shader.TileMode.CLAMP);
         }
         @Override protected void onDetachedFromWindow() {
             if(tintAnimation!=null) tintAnimation.cancel();
