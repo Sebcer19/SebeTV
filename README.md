@@ -2,23 +2,24 @@
 
 Accueil Android TV gratuit, local et sans publicité.
 
-## Version 0.3
-- Suppression des phrases d’introduction et des descriptions secondaires.
-- Suppression du texte d’aide et du numéro de version en bas de l’écran.
-- Onglets permanents **Accueil** et **Applications**, avec indication de l’onglet sélectionné.
-- Menu Applications : grille de toutes les applications TV détectées.
-- Favoris, rangée divertissement et trois ambiances conservés.
+## Version 0.4
+- Accueil sans titre de rangée ni phrases d’introduction.
+- Bouton **Gérer mes applications** : cochez les applications à placer dans la première rangée, puis choisissez **Enregistrer**.
+- Les autres applications TV restent accessibles dans une grille sous cette rangée.
+- Onglet **Applications** : grille complète des applications TV détectées et accès au gestionnaire.
+- Ambiance animée à la sélection : rouge pour Netflix et YouTube, bleu pour Disney+, cyan pour Prime Video, orange pour Crunchyroll, vert pour Spotify, etc.
+- Les sélections sont conservées sur la télévision. Les anciens favoris servent de sélection initiale ; sans favoris, les applications de divertissement sont présélectionnées.
 
-[Télécharger Sébé TV 0.3](https://github.com/Sebcer19/SebeTV/raw/refs/heads/main/SebeTV-0.3.apk)
+[Télécharger Sébé TV 0.4](https://github.com/Sebcer19/SebeTV/raw/refs/heads/main/SebeTV-0.4.apk)
 
-## Installation depuis 0.1 / 0.2
-La clé de développement des premières versions n’a pas été conservée. La version 0.3 utilise une nouvelle clé dédiée, sauvegardée séparément de ce dépôt.
+## Installation
+Depuis la version **0.3**, installer la 0.4 directement par-dessus : même clé de signature, réglages conservés.
 
-Il faut désinstaller la version 0.1/0.2 avant d’installer 0.3. Les favoris et le thème de l’ancienne installation seront perdus : notez votre sélection avant de désinstaller. Les prochaines versions doivent réutiliser la clé 0.3 afin de permettre des mises à jour normales.
+Depuis la version **0.1 ou 0.2**, désinstaller l’ancienne version avant l’installation. Leur clé de développement n’a pas été conservée. Les réglages de cette ancienne installation seront perdus : notez votre sélection avant de désinstaller. La clé dédiée utilisée depuis 0.3 est sauvegardée séparément de ce dépôt.
 
 Ouvrir le lien APK dans Downloader sur la télévision, télécharger puis installer. Autoriser cette source si Android le demande. Lancer Sébé TV depuis les applications. Aucun remplacement automatique de l’accueil Google TV.
 
-OK ouvre une application ; appui long OK ajoute ou retire un favori. Le bouton Retour revient de Applications à Accueil.
+OK ouvre une application ; un appui long sur OK permet de l’ajouter à la première rangée ou de l’en retirer. Le bouton Retour revient de Applications à Accueil.
 
 ## Compilation
 JDK 17, SDK Android 35, Gradle 8.9.
@@ -27,4 +28,4 @@ Pour un essai avec votre propre clé de développement : `./gradlew assembleDebu
 
 Pour une version signée avec la clé dédiée : définir `SEBETV_KEYSTORE` (chemin absolu), `SEBETV_STORE_PASSWORD` et `SEBETV_KEY_PASSWORD`, puis lancer `./gradlew assembleRelease lintRelease`. Alias de clé : `sebetv`. Ne jamais publier le fichier de clé ni ses mots de passe.
 
-La compilation et la vérification de signature ne remplacent pas un essai sur télévision. La nouvelle interface 0.3 reste à vérifier sur appareil.
+La compilation et la vérification de signature ne remplacent pas un essai sur télévision. La nouvelle interface 0.4 reste à vérifier sur appareil.

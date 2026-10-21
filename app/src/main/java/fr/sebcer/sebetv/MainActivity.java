@@ -19,6 +19,9 @@ public class MainActivity extends Activity {
     private boolean allApps = false;
     private String restoreFocus = "";
     private int theme;
+    private Landscape landscape;
+    private int focusColor;
+    private final Map<String,Integer> appColors = new HashMap<>();
     private final int[] accents = {0xffe8b778, 0xffa9b8ff, 0xff84dbc9};
     private int dp(float n) { return Math.round(n * getResources().getDisplayMetrics().density); }
 
@@ -49,11 +52,15 @@ public class MainActivity extends Activity {
     }
     private GradientDrawable surface(boolean focused) {
         GradientDrawable bg = new GradientDrawable(); bg.setColor(focused ? 0xff303644 : 0xe619202c);
-        bg.setCornerRadius(dp(12)); bg.setStroke(dp(focused ? 3 : 1), focused ? accents[theme] : 0x304f586d); return bg;
+        bg.setCornerRadius(dp(12)); bg.setStroke(dp(focused ? 3 : 1), focused ? focusColor : 0x304f586d); return bg;
     }
     private void focusable(View v, String tag) {
         v.setTag(tag); v.setFocusable(true); v.setClickable(true); v.setBackground(surface(false));
         v.setOnFocusChangeListener((view, focus) -> {
+            if (focus) {
+                focusColor = appColors.getOrDefault(tag, accents[theme]);
+                if (landscape != null) landscape.tintTo(appColors.getOrDefault(tag, baseTint()));
+            }
             view.setBackground(surface(focus));
             view.animate().scaleX(focus ? 1.035f : 1f).scaleY(focus ? 1.035f : 1f).setDuration(130).start();
             if (focus) restoreFocus = tag;
@@ -79,8 +86,10 @@ public class MainActivity extends Activity {
     }
     private void render() {
         theme = prefs.getInt("theme", 0);
+        focusColor = accents[theme]; appColors.clear();
         FrameLayout frame = new FrameLayout(this);
-        frame.addView(new Landscape(this), new FrameLayout.LayoutParams(-1,-1));
+        landscape = new Landscape(this);
+        frame.addView(landscape, new FrameLayout.LayoutParams(-1,-1));
         LinearLayout shell = new LinearLayout(this); shell.setOrientation(LinearLayout.VERTICAL);
         shell.setPadding(dp(38),dp(24),dp(38),dp(14)); frame.addView(shell);
         LinearLayout header = new LinearLayout(this); header.setGravity(Gravity.CENTER_VERTICAL);
@@ -97,27 +106,19 @@ public class MainActivity extends Activity {
         ScrollView scroll = new ScrollView(this); scroll.setClipToPadding(false); scroll.setVerticalScrollBarEnabled(false);
         content = new LinearLayout(this); content.setOrientation(LinearLayout.VERTICAL); content.setPadding(dp(5),dp(20),dp(5),dp(12));
         scroll.addView(content); shell.addView(scroll,new LinearLayout.LayoutParams(-1,0,1));
-        Set<String> fav = favorites();
+        Set<String> selection = homeSelection();
         if (allApps) {
-            int columns = Math.max(2, Math.min(5, (getResources().getConfiguration().screenWidthDp - 86) / 150));
-            for (int start=0;start<apps.size();start+=columns) {
-                LinearLayout row = new LinearLayout(this); row.setPadding(0,dp(7),0,dp(7)); row.setClipChildren(false);
-                for (int col=0;col<columns;col++) {
-                    LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0,dp(111),1); lp.setMargins(dp(5),0,dp(5),0);
-                    row.addView(start+col<apps.size()?card(apps.get(start+col),fav):new View(this),lp);
-                }
-                content.addView(row);
-            }
+            addManageButton();
+            appGrid(apps, selection);
         } else {
-            ArrayList<ResolveInfo> selected = new ArrayList<>(), streaming = new ArrayList<>();
+            ArrayList<ResolveInfo> selected = new ArrayList<>(), remaining = new ArrayList<>();
             for (ResolveInfo app : apps) {
-                if (fav.contains(app.activityInfo.packageName)) selected.add(app);
-                else if (isEntertainment(app)) streaming.add(app);
+                if (selection.contains(app.activityInfo.packageName)) selected.add(app);
+                else remaining.add(app);
             }
-            if (!selected.isEmpty()) appShelf("Vos favoris", "Votre sélection personnelle",selected,fav);
-            if (!streaming.isEmpty()) appShelf("Films, séries & musique", "Explorez vos applications",streaming,fav);
-            if (selected.isEmpty() && streaming.isEmpty()) appShelf("Vos applications", "Choisissez vos premiers favoris",apps,fav);
-
+            appShelf(selected, selection);
+            addManageButton();
+            appGrid(remaining, selection);
         }
         if (apps.isEmpty()) content.addView(text("Aucune application TV détectée. Installez-en depuis le Play Store.",16,Color.WHITE));
         setContentView(frame);
@@ -134,11 +135,52 @@ public class MainActivity extends Activity {
         }
         return null;
     }
-    private void appShelf(String name, String description, List<ResolveInfo> items, Set<String> fav) {
+    private Set<String> homeSelection() {
+        if (prefs.contains("home_selection"))
+            return new HashSet<>(prefs.getStringSet("home_selection", Collections.emptySet()));
+        Set<String> initial = favorites();
+        if (initial.isEmpty()) for (ResolveInfo app : apps)
+            if (isEntertainment(app)) initial.add(app.activityInfo.packageName);
+        prefs.edit().putStringSet("home_selection", initial).apply();
+        return initial;
+    }
+    private void addManageButton() {
+        LinearLayout bar = new LinearLayout(this);
+        bar.setPadding(dp(5),dp(13),dp(5),dp(13));
+        TextView manage = button("Gérer mes applications", "manage", this::manageApplications);
+        bar.addView(manage); content.addView(bar);
+    }
+    private void manageApplications() {
+        if (apps.isEmpty()) { Toast.makeText(this,"Aucune application TV disponible.",Toast.LENGTH_SHORT).show(); return; }
+        // Capture a stable list; cancel/back never commits the draft.
+        final ArrayList<ResolveInfo> candidates = new ArrayList<>(apps);
+        final Set<String> draft = homeSelection();
+        String[] labels = new String[candidates.size()]; boolean[] checked = new boolean[candidates.size()];
+        for (int i=0;i<candidates.size();i++) {
+            ResolveInfo app = candidates.get(i); labels[i]=app.loadLabel(getPackageManager()).toString();
+            checked[i]=draft.contains(app.activityInfo.packageName);
+        }
+        new AlertDialog.Builder(this).setTitle("Applications de la première rangée")
+            .setMultiChoiceItems(labels,checked,(dialog,index,isChecked)-> {
+                String pkg=candidates.get(index).activityInfo.packageName;
+                if(isChecked) draft.add(pkg); else draft.remove(pkg);
+            }).setPositiveButton("Enregistrer",(dialog,which)-> {
+                prefs.edit().putStringSet("home_selection",draft).apply(); restoreFocus="manage"; render();
+            }).setNegativeButton("Annuler",null).show();
+    }
+    private void appGrid(List<ResolveInfo> items, Set<String> selection) {
+        int columns = Math.max(2,Math.min(5,(getResources().getConfiguration().screenWidthDp-86)/150));
+        for(int start=0;start<items.size();start+=columns) {
+            LinearLayout row=new LinearLayout(this); row.setPadding(0,dp(7),0,dp(7)); row.setClipChildren(false);
+            for(int col=0;col<columns;col++) {
+                LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(0,dp(111),1);lp.setMargins(dp(5),0,dp(5),0);
+                row.addView(start+col<items.size()?card(items.get(start+col),selection):new View(this),lp);
+            }
+            content.addView(row);
+        }
+    }
+    private void appShelf(List<ResolveInfo> items, Set<String> fav) {
         if(items.isEmpty()) return;
-        LinearLayout heading=new LinearLayout(this); heading.setGravity(Gravity.CENTER_VERTICAL); heading.setPadding(0,dp(4),0,dp(4));
-        TextView title=text(name,17,Color.WHITE); title.setTypeface(null,Typeface.BOLD);
-        heading.addView(title,new LinearLayout.LayoutParams(0,-2,1)); content.addView(heading);
         HorizontalScrollView shelf=new HorizontalScrollView(this); shelf.setHorizontalScrollBarEnabled(false); shelf.setClipToPadding(false);
         LinearLayout row=new LinearLayout(this); row.setPadding(dp(5),dp(7),dp(5),dp(9)); row.setClipChildren(false);
         int width=Math.max(140,(getResources().getConfiguration().screenWidthDp-110)/5);
@@ -148,6 +190,7 @@ public class MainActivity extends Activity {
     private void addNav(LinearLayout row, View v) { LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2,-2); lp.rightMargin=dp(12); row.addView(v,lp); }
     private View card(ResolveInfo app, Set<String> fav) {
         String pkg = app.activityInfo.packageName;
+        appColors.put(pkg, colorFor(app));
         LinearLayout tile = new LinearLayout(this); tile.setOrientation(LinearLayout.VERTICAL); tile.setGravity(Gravity.CENTER); tile.setPadding(dp(9),dp(8),dp(9),dp(8));
         ImageView icon = new ImageView(this); android.graphics.drawable.Drawable banner = app.activityInfo.loadBanner(getPackageManager());
         if (banner == null) banner = app.activityInfo.applicationInfo.loadBanner(getPackageManager());
@@ -155,17 +198,34 @@ public class MainActivity extends Activity {
         icon.setScaleType(ImageView.ScaleType.FIT_CENTER); icon.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
         tile.addView(icon,new LinearLayout.LayoutParams(banner != null ? -1 : dp(48),dp(61)));
         String name = app.loadLabel(getPackageManager()).toString();
-        TextView label = text((fav.contains(pkg) ? "★ " : "") + name, 13, Color.WHITE); label.setGravity(Gravity.CENTER); label.setMaxLines(1); label.setEllipsize(android.text.TextUtils.TruncateAt.END); label.setPadding(0,dp(8),0,0); tile.addView(label);
-        tile.setContentDescription(name + (fav.contains(pkg) ? ", favori" : "")); focusable(tile,pkg);
+        TextView label = text(name, 13, Color.WHITE); label.setGravity(Gravity.CENTER); label.setMaxLines(1); label.setEllipsize(android.text.TextUtils.TruncateAt.END); label.setPadding(0,dp(8),0,0); tile.addView(label);
+        tile.setContentDescription(name + (fav.contains(pkg) ? ", dans la première rangée" : "")); focusable(tile,pkg);
         tile.setOnClickListener(v -> safeStart(new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LEANBACK_LAUNCHER).setComponent(new ComponentName(pkg,app.activityInfo.name)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)));
         tile.setOnLongClickListener(v -> {
-            Set<String> current = favorites(); boolean exists = current.contains(pkg);
-            new AlertDialog.Builder(this).setTitle(name).setItems(new String[]{exists ? "Retirer des favoris" : "Ajouter aux favoris"}, (d,which) -> {
+            Set<String> current = homeSelection(); boolean exists = current.contains(pkg);
+            new AlertDialog.Builder(this).setTitle(name).setItems(new String[]{exists ? "Retirer de la première rangée" : "Ajouter à la première rangée"}, (d,which) -> {
                 if (exists) current.remove(pkg); else current.add(pkg);
-                prefs.edit().putStringSet("favorites",current).apply(); render();
+                prefs.edit().putStringSet("home_selection",current).apply(); render();
             }).setNegativeButton("Annuler",null).show(); return true;
         });
         return tile;
+    }
+    private int baseTint() { return new int[]{0xff604b35,0xff354c84,0xff2c675e}[theme]; }
+    private int colorFor(ResolveInfo app) {
+        String key=(app.activityInfo.packageName+" "+app.loadLabel(getPackageManager())).toLowerCase(Locale.ROOT);
+        if(key.contains("netflix")) return 0xffe50914;
+        if(key.contains("youtube")) return 0xffff2929;
+        if(key.contains("disney")) return 0xff087de5;
+        if(key.contains("prime") || key.contains("amazonvideo")) return 0xff00a8e1;
+        if(key.contains("crunchyroll")) return 0xffff861b;
+        if(key.contains("spotify")) return 0xff1ed760;
+        if(key.contains("twitch")) return 0xff9146ff;
+        if(key.contains("apple")) return 0xffb9c9dc;
+        if(key.contains("canal")) return 0xff8896ac;
+        if(key.contains("plex")) return 0xffe5a00d;
+        if(key.contains("vlc")) return 0xffff8c21;
+        if(key.contains("arte")) return 0xffff6033;
+        return accents[theme];
     }
     private void chooseTheme() {
         new AlertDialog.Builder(this).setTitle("Votre ambiance").setSingleChoiceItems(new String[]{"Cinéma · ambre", "Minuit · bleu", "Nature · sauge"},theme,(dialog,which) -> {
@@ -184,11 +244,29 @@ public class MainActivity extends Activity {
         private final Path[] ridges={new Path(),new Path(),new Path()};
         private final int[] ridgeColors={0x244a526b,0x333d4963,0x88101825};
         private Shader sky,glow,veil;
+        private int tint = baseTint();
+        private android.animation.ValueAnimator tintAnimation;
         Landscape(Context c) { super(c); setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO); }
+        void tintTo(int target) {
+            if (tintAnimation != null) tintAnimation.cancel();
+            if (target == tint) return;
+            if (getWidth()==0) { tint=target; return; }
+            tintAnimation = android.animation.ValueAnimator.ofArgb(tint,target);
+            tintAnimation.setDuration(230);
+            tintAnimation.addUpdateListener(animation -> { tint=(Integer)animation.getAnimatedValue(); updateGlow(); invalidate(); });
+            tintAnimation.start();
+        }
+        private void updateGlow() {
+            if(getWidth()>0) glow=new RadialGradient(getWidth()*.78f,getHeight()*.25f,getWidth()*.82f,
+                new int[]{tint, (tint & 0x00ffffff) | 0x66000000,0x00151e30},new float[]{0f,.52f,1f},Shader.TileMode.CLAMP);
+        }
+        @Override protected void onDetachedFromWindow() {
+            if(tintAnimation!=null) tintAnimation.cancel();
+            super.onDetachedFromWindow();
+        }
         @Override protected void onSizeChanged(int w,int h,int oldw,int oldh) {
-            int[] tones={0xff604b35,0xff354c84,0xff2c675e};
             sky=new LinearGradient(0,0,w,h,0xff090e19,0xff151e30,Shader.TileMode.CLAMP);
-            glow=new RadialGradient(w*.88f,h*.24f,w*.6f,new int[]{tones[theme],0x00151e30},null,Shader.TileMode.CLAMP);
+            updateGlow();
             veil=new LinearGradient(0,0,0,h,new int[]{0x11060b15,0x44060b15,0xf2080d17},null,Shader.TileMode.CLAMP);
             for(int i=0;i<3;i++) {
                 Path p=ridges[i]; p.reset(); p.moveTo(0,h); p.lineTo(0,h*(.79f+i*.04f));
