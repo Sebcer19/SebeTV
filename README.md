@@ -2,20 +2,19 @@
 
 Accueil Android TV gratuit, local et sans publicité.
 
-## Version 0.5
-- Appui long sur une application : déplacer, masquer / réafficher sur l’accueil, mettre en avant / retirer de la sélection.
-- Déplacement : flèches gauche / droite, puis OK ou Retour pour terminer. L’ordre est sauvegardé au fil des déplacements. Depuis l’accueil, le déplacement reste dans le groupe sélectionné ou dans les autres applications ; depuis Applications, il porte sur toute la liste.
-- Les applications masquées restent accessibles et identifiables dans l’onglet Applications.
-- Réglages : trois tailles de tuiles, une à trois rangées mises en avant, quatre intensités de halo (dont désactivé). Les applications supplémentaires défilent horizontalement ; la grille du dessous reste accessible verticalement.
-- Tuiles arrondies, dégradé discret, logos centrés, agrandissement et ombre à la sélection.
-- Halo élargi avec transition de couleur douce par application.
-- Raccourcis : entrées TV / HDMI, réglages TV, ambiance plein écran. Les entrées dépendent de leur disponibilité sur la télévision ; sinon un message indique d’utiliser la touche Source / Input.
-- Ambiance plein écran sans texte permanent. OK ou Retour pour sortir ; aucun blocage de la veille du téléviseur.
+## Version 0.6
+- Accueil allégé : uniquement les applications choisies, sans grille d’applications système en dessous. Gestion des applications et raccourcis dans Réglages ; liste complète dans Applications.
+- Fonds animés intégrés : rideaux de lumière rouges pour Netflix, arc étoilé bleu pour Disney+, ondes aux couleurs des autres applications. Il s’agit d’animations originales, pas des génériques officiels.
+- Appui long sur une tuile → **Choisir une vidéo de fond** : associer un fichier vidéo accessible à la télévision (stockage local ou clé USB via le sélecteur Android). Les génériques officiels ne sont pas fournis.
+- Vidéo en boucle, sans son, lancée après un court délai sur la tuile ; arrêt quand on change de sélection ou quitte Sébé TV.
+- Appui long → **Retirer la vidéo de fond** pour revenir à l’animation intégrée.
+- Ambiance → **Désactiver les fonds animés** pour revenir à un fond fixe.
+- Si un fichier devient inaccessible ou illisible, retour à l’animation intégrée. Le sélecteur de fichiers compatible Android et le décodage du fichier doivent être disponibles sur la TV.
 
-[Télécharger Sébé TV 0.5](https://github.com/Sebcer19/SebeTV/raw/refs/heads/main/SebeTV-0.5.apk)
+[Télécharger Sébé TV 0.6](https://github.com/Sebcer19/SebeTV/raw/refs/heads/main/SebeTV-0.6.apk)
 
 ## Installation
-Depuis les versions **0.3 ou 0.4**, installer la 0.5 directement par-dessus : même clé de signature, réglages conservés.
+Depuis les versions **0.3, 0.4 ou 0.5**, installer la 0.6 directement par-dessus : même clé de signature, réglages conservés.
 
 Depuis la version **0.1 ou 0.2**, désinstaller l’ancienne version avant l’installation. Leur clé de développement n’a pas été conservée. Les réglages de cette ancienne installation seront perdus : notez votre sélection avant de désinstaller. La clé dédiée utilisée depuis 0.3 est sauvegardée séparément de ce dépôt.
 
@@ -30,4 +29,4 @@ Pour un essai avec votre propre clé de développement : `./gradlew assembleDebu
 
 Pour une version signée avec la clé dédiée : définir `SEBETV_KEYSTORE` (chemin absolu), `SEBETV_STORE_PASSWORD` et `SEBETV_KEY_PASSWORD`, puis lancer `./gradlew assembleRelease lintRelease`. Alias de clé : `sebetv`. Ne jamais publier le fichier de clé ni ses mots de passe.
 
-La compilation et la vérification de signature ne remplacent pas un essai sur télévision. La nouvelle interface 0.5 reste à vérifier sur appareil.
+La compilation et la vérification de signature ne remplacent pas un essai sur télévision. La nouvelle interface 0.6 reste à vérifier sur appareil.

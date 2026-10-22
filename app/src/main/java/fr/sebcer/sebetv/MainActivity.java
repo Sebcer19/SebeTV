@@ -21,6 +21,9 @@ public class MainActivity extends Activity {
     private String restoreFocus = "";
     private int theme;
     private Landscape landscape;
+    private BackgroundVideo backgroundVideo;
+    private String pendingVideoPackage;
+    private boolean resumed;
     private int focusColor;
     private final Map<String,Integer> appColors = new HashMap<>();
     private final int[] accents = {0xffe8b778, 0xffa9b8ff, 0xff84dbc9};
@@ -29,14 +32,21 @@ public class MainActivity extends Activity {
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
         prefs = getSharedPreferences("sebetv", MODE_PRIVATE);
-        if (state != null) { allApps = state.getBoolean("all"); restoreFocus = state.getString("focus", ""); }
+        if (state != null) { allApps = state.getBoolean("all"); restoreFocus = state.getString("focus", ""); pendingVideoPackage=state.getString("video_package"); }
         getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_FULLSCREEN | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY);
     }
     @Override protected void onSaveInstanceState(Bundle state) {
+        state.putString("video_package",pendingVideoPackage);
         state.putBoolean("all", allApps); state.putString("focus", restoreFocus);
         super.onSaveInstanceState(state);
     }
-    @Override protected void onResume() { super.onResume(); reloadApps(); render(); }
+    @Override protected void onResume() { super.onResume(); resumed=true; reloadApps(); render(); }
+    @Override protected void onPause() {
+        resumed=false;
+        if(backgroundVideo!=null)backgroundVideo.stop();
+        if(landscape!=null)landscape.setMotion(false);
+        super.onPause();
+    }
     private void reloadApps() {
         apps.clear();
         Intent query = new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LEANBACK_LAUNCHER);
@@ -61,7 +71,7 @@ public class MainActivity extends Activity {
         v.setOnFocusChangeListener((view, focus) -> {
             if (focus) {
                 focusColor = appColors.getOrDefault(tag, accents[theme]);
-                if (landscape != null) landscape.tintTo(appColors.getOrDefault(tag, baseTint()));
+                selectBackground(tag);
             }
             view.setBackground(surface(focus));
             view.animate().scaleX(focus ? 1.045f : 1f).scaleY(focus ? 1.045f : 1f).setDuration(180).start();
@@ -91,9 +101,17 @@ public class MainActivity extends Activity {
         theme = prefs.getInt("theme", 0);
         sortApps();
         focusColor = accents[theme]; appColors.clear();
+        if(backgroundVideo!=null)backgroundVideo.stop();
         FrameLayout frame = new FrameLayout(this);
         landscape = new Landscape(this);
         frame.addView(landscape, new FrameLayout.LayoutParams(-1,-1));
+        backgroundVideo=new BackgroundVideo(this,()-> {
+            if(landscape!=null)landscape.setMotion(resumed && prefs.getBoolean("motion",true));
+            Toast.makeText(this,"Vidéo indisponible : animation intégrée utilisée.",Toast.LENGTH_SHORT).show();
+        },()-> {if(landscape!=null)landscape.setMotion(false);});
+        frame.addView(backgroundVideo,new FrameLayout.LayoutParams(-1,-1));
+        View shade=new View(this); GradientDrawable shadeBg=new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,new int[]{0x99050a13,0x33050a13,0x55050a13});shade.setBackground(shadeBg);
+        frame.addView(shade,new FrameLayout.LayoutParams(-1,-1));
         LinearLayout shell = new LinearLayout(this); shell.setOrientation(LinearLayout.VERTICAL);
         shell.setPadding(dp(38),dp(24),dp(38),dp(14)); frame.addView(shell);
         LinearLayout header = new LinearLayout(this); header.setGravity(Gravity.CENTER_VERTICAL);
@@ -115,15 +133,14 @@ public class MainActivity extends Activity {
             addManageButton();
             appGrid(apps, selection);
         } else {
-            ArrayList<ResolveInfo> selected = new ArrayList<>(), remaining = new ArrayList<>();
+            ArrayList<ResolveInfo> selected = new ArrayList<>();
             for (ResolveInfo app : apps) {
                 if (hiddenApps().contains(app.activityInfo.packageName)) continue;
                 if (selection.contains(app.activityInfo.packageName)) selected.add(app);
-                else remaining.add(app);
+
             }
             appShelf(selected, selection);
-            addManageButton();
-            appGrid(remaining, selection);
+            if(selected.isEmpty()) content.addView(button("Choisir mes applications TV","manage",this::manageApplications));
         }
         if(movingPackage!=null) content.addView(text("Déplacement : ← → · OK pour terminer",14,accents[theme]));
         if (apps.isEmpty()) content.addView(text("Aucune application TV détectée. Installez-en depuis le Play Store.",16,Color.WHITE));
@@ -247,13 +264,18 @@ public class MainActivity extends Activity {
     private void appOptions(ResolveInfo app) {
         String pkg=app.activityInfo.packageName; boolean hidden=hiddenApps().contains(pkg), selected=homeSelection().contains(pkg);
         new AlertDialog.Builder(this).setTitle(app.loadLabel(getPackageManager()))
-            .setItems(new String[]{"Déplacer",hidden?"Afficher sur l’accueil":"Masquer de l’accueil", selected?"Retirer de la sélection":"Mettre en avant"},(d,which)-> {
+            .setItems(new String[]{"Déplacer",hidden?"Afficher sur l’accueil":"Masquer de l’accueil", selected?"Retirer de la sélection":"Mettre en avant", "Choisir une vidéo de fond", "Retirer la vidéo de fond"},(d,which)-> {
                 if(which==0) {
                     movingPackage=pkg;
                     Toast.makeText(this,"Gauche / droite pour déplacer · OK pour terminer",Toast.LENGTH_LONG).show();
                 } else if(which==1) {
                     Set<String> h=hiddenApps(); if(hidden)h.remove(pkg);else h.add(pkg);
-                    prefs.edit().putStringSet("hidden_apps",h).apply(); render();
+                    Set<String> sel=homeSelection(); if(hidden)sel.add(pkg);
+                    prefs.edit().putStringSet("hidden_apps",h).putStringSet("home_selection",sel).apply(); render();
+                } else if(which==3) {chooseVideo(pkg);
+                } else if(which==4) {
+                    String old=prefs.getString("video_"+pkg,"");
+                    prefs.edit().remove("video_"+pkg).apply(); releaseVideoPermission(old);render();
                 } else {
                     Set<String> sel=homeSelection(),h=hiddenApps();
                     if(selected)sel.remove(pkg);else {sel.add(pkg);h.remove(pkg);}
@@ -295,23 +317,28 @@ public class MainActivity extends Activity {
         }).setNegativeButton("Annuler",null).show();
     }
     private void settingsMenu() {
-        new AlertDialog.Builder(this).setTitle("Personnaliser Sébé TV").setItems(new String[]{"Gérer mes applications","Taille des tuiles","Nombre de rangées mises en avant","Intensité du halo","Réglages de la télévision"},(d,which)-> {
+        new AlertDialog.Builder(this).setTitle("Personnaliser Sébé TV").setItems(new String[]{"Gérer mes applications","Taille des tuiles","Nombre de rangées mises en avant","Intensité du halo","Réglages de la télévision","Raccourcis TV"},(d,which)-> {
             if(which==0)manageApplications();
             if(which==1)preference("Taille des tuiles","tile_size",new String[]{"Petites","Moyennes","Grandes"},1);
             if(which==2)new AlertDialog.Builder(this).setTitle("Rangées mises en avant").setSingleChoiceItems(new String[]{"1 rangée","2 rangées","3 rangées"},prefs.getInt("home_rows",1)-1,(dialog,index)-> {prefs.edit().putInt("home_rows",index+1).apply();dialog.dismiss();render();}).setNegativeButton("Annuler",null).show();
             if(which==3)preference("Intensité du halo","halo",new String[]{"Désactivé","Doux","Équilibré","Intense"},2);
             if(which==4)safeStart(new Intent(Settings.ACTION_SETTINGS));
+            if(which==5)shortcuts();
         }).setNegativeButton("Fermer",null).show();
     }
     private void ambianceMenu() {
-        new AlertDialog.Builder(this).setTitle("Ambiance").setItems(new String[]{"Choisir le thème","Intensité du halo","Ambiance plein écran"},(d,which)-> {
+        new AlertDialog.Builder(this).setTitle("Ambiance").setItems(new String[]{"Choisir le thème","Intensité du halo","Ambiance plein écran",prefs.getBoolean("motion",true)?"Désactiver les fonds animés":"Activer les fonds animés"},(d,which)-> {
             if(which==0)chooseTheme();
             if(which==1)preference("Intensité du halo","halo",new String[]{"Désactivé","Doux","Équilibré","Intense"},2);
             if(which==2)ambient();
+            if(which==3){prefs.edit().putBoolean("motion",!prefs.getBoolean("motion",true)).apply();render();}
         }).setNegativeButton("Fermer",null).show();
     }
     private void ambient() {
+        if(backgroundVideo!=null)backgroundVideo.stop();
+        if(landscape!=null)landscape.setMotion(false);
         Dialog dialog=new Dialog(this,android.R.style.Theme_Material_NoActionBar_Fullscreen);
+        dialog.setOnDismissListener(d->selectBackground(restoreFocus));
         Landscape background=new Landscape(this); background.setFocusable(true); background.setClickable(true);
         background.setOnClickListener(v->dialog.dismiss());
         dialog.setContentView(background); dialog.show();
@@ -337,6 +364,44 @@ public class MainActivity extends Activity {
             new AlertDialog.Builder(this).setTitle("Entrées TV").setMessage("Cette télévision ne partage pas ses entrées avec Sébé TV. Utilisez la touche Source / Input de la télécommande.").setPositiveButton("Réglages TV",(d,w)->safeStart(new Intent(Settings.ACTION_SETTINGS))).setNegativeButton("Fermer",null).show();return;
         }
         new AlertDialog.Builder(this).setTitle("Entrées TV / HDMI").setItems(labels.toArray(new String[0]),(d,which)->safeStart(new Intent(Intent.ACTION_VIEW,android.media.tv.TvContract.buildChannelUriForPassthroughInput(inputs.get(which).getId())))).setNegativeButton("Fermer",null).show();
+    }
+    private void selectBackground(String pkg) {
+        if(landscape==null)return;
+        String label="";
+        for(ResolveInfo app:apps)if(app.activityInfo.packageName.equals(pkg)){label=app.loadLabel(getPackageManager()).toString();break;}
+        landscape.brand(label);
+        landscape.tintTo(appColors.getOrDefault(pkg,baseTint()));
+        boolean motion=resumed && prefs.getBoolean("motion",true);
+        landscape.setMotion(motion);
+        if(backgroundVideo!=null)backgroundVideo.select(motion?prefs.getString("video_"+pkg,""):"");
+    }
+    private void chooseVideo(String pkg) {
+        Intent intent=new Intent(Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("video/*")
+            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION|Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
+        pendingVideoPackage=pkg;
+        try {startActivityForResult(intent,61);}
+        catch(ActivityNotFoundException e){pendingVideoPackage=null;new AlertDialog.Builder(this).setTitle("Choisir une vidéo")
+            .setMessage("Aucun sélecteur de fichiers compatible n’est installé. Ajoutez un gestionnaire de fichiers compatible avec le sélecteur Android, puis choisissez votre vidéo depuis le stockage de la TV ou une clé USB.").setPositiveButton("OK",null).show();}
+    }
+    @Override protected void onActivityResult(int request,int result,Intent data) {
+        super.onActivityResult(request,result,data);
+        if(request!=61)return;
+        String pkg=pendingVideoPackage;pendingVideoPackage=null;
+        if(result!=RESULT_OK || data==null || data.getData()==null || pkg==null)return;
+        android.net.Uri uri=data.getData();
+        try {
+            getContentResolver().takePersistableUriPermission(uri,Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            String old=prefs.getString("video_"+pkg,"");
+            prefs.edit().putString("video_"+pkg,uri.toString()).apply();
+            if(!old.equals(uri.toString()))releaseVideoPermission(old);
+            restoreFocus=pkg;
+            Toast.makeText(this,"Vidéo associée · lecture en boucle sans son",Toast.LENGTH_LONG).show();
+        } catch(SecurityException e) {Toast.makeText(this,"Impossible de conserver l’accès à cette vidéo. Choisissez un autre fichier.",Toast.LENGTH_LONG).show();}
+    }
+    private void releaseVideoPermission(String uri) {
+        if(uri.isEmpty())return;
+        for(Map.Entry<String,?> entry:prefs.getAll().entrySet())if(entry.getKey().startsWith("video_") && uri.equals(entry.getValue()))return;
+        try{getContentResolver().releasePersistableUriPermission(android.net.Uri.parse(uri),Intent.FLAG_GRANT_READ_URI_PERMISSION);}catch(SecurityException ignored){}
     }
     private int baseTint() { return new int[]{0xff604b35,0xff354c84,0xff2c675e}[theme]; }
     private int colorFor(ResolveInfo app) {
@@ -374,6 +439,14 @@ public class MainActivity extends Activity {
         private Shader sky,glow,veil;
         private int tint = baseTint();
         private android.animation.ValueAnimator tintAnimation;
+        private String brandLabel="",brandKey="";
+        private boolean motion;
+        private long started;
+        private final Paint cinematic=new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final RectF arc=new RectF();
+        private final Typeface cinemaFont=Typeface.create("sans-serif-light",Typeface.NORMAL);
+        void brand(String label) {brandLabel=label;brandKey=label.toLowerCase(Locale.ROOT);started=SystemClock.uptimeMillis();invalidate();}
+        void setMotion(boolean enabled) {motion=enabled;invalidate();}
         Landscape(Context c) { super(c); setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO); }
         void tintTo(int target) {
             if (tintAnimation != null) tintAnimation.cancel();
@@ -389,6 +462,7 @@ public class MainActivity extends Activity {
                 new int[]{withAlpha(tint,haloAlpha()), withAlpha(tint,haloAlpha()/2),0x00151e30},new float[]{0f,.52f,1f},Shader.TileMode.CLAMP);
         }
         @Override protected void onDetachedFromWindow() {
+            motion=false;
             if(tintAnimation!=null) tintAnimation.cancel();
             super.onDetachedFromWindow();
         }
@@ -404,10 +478,40 @@ public class MainActivity extends Activity {
         }
         @Override protected void onDraw(Canvas canvas) {
             float w=getWidth(),h=getHeight();
-            paint.setShader(sky); canvas.drawRect(0,0,w,h,paint);
+            paint.setAlpha(255);paint.setShader(sky); canvas.drawRect(0,0,w,h,paint);
             paint.setShader(glow); canvas.drawRect(0,0,w,h,paint); paint.setShader(null);
             for(int i=0;i<3;i++) { paint.setColor(ridgeColors[i]); canvas.drawPath(ridges[i],paint); }
-            paint.setShader(veil); canvas.drawRect(0,0,w,h,paint); paint.setShader(null);
+            paint.setAlpha(255);paint.setShader(veil); canvas.drawRect(0,0,w,h,paint); paint.setShader(null);
+            if(!brandLabel.isEmpty())drawCinema(canvas,w,h);
+            if(motion && !brandLabel.isEmpty() && isShown())postInvalidateDelayed(33);
+        }
+        private void drawCinema(Canvas canvas,float w,float h) {
+            float phase=motion?((SystemClock.uptimeMillis()-started)%9000)/9000f:0.3f;
+            int alpha=Math.max(35,haloAlpha());
+            cinematic.setStyle(Paint.Style.FILL);
+            if(brandKey.contains("netflix")) {
+                // Original flowing red light curtains, not an embedded official intro.
+                for(int i=0;i<28;i++) {
+                    float x=w*(.18f+i*.026f)+w*.025f*(float)Math.sin(phase*Math.PI*2+i*.35f);
+                    cinematic.setColor(withAlpha(0xffe50914,(int)(alpha*(.12f+.24f*(1+Math.sin(i+phase*6.28f))/2))));
+                    canvas.drawRect(x,h*.12f,x+w*(.003f+(i%3)*.002f),h,cinematic);
+                }
+            } else if(brandKey.contains("disney")) {
+                cinematic.setStyle(Paint.Style.STROKE);cinematic.setStrokeWidth(dp(2));cinematic.setColor(withAlpha(0xffa9dfff,alpha));
+                arc.set(w*.30f,h*.45f,w*.86f,h*1.05f);canvas.drawArc(arc,195,150,false,cinematic);
+                double angle=Math.toRadians(195+phase*150);float x=arc.centerX()+(float)Math.cos(angle)*arc.width()/2,y=arc.centerY()+(float)Math.sin(angle)*arc.height()/2;
+                cinematic.setStyle(Paint.Style.FILL);cinematic.setColor(0xffe5f5ff);canvas.drawCircle(x,y,dp(3),cinematic);
+                for(int i=0;i<24;i++){float sx=w*(.15f+((i*37)%77)/100f),sy=h*(.38f+((i*19)%53)/100f);cinematic.setColor(withAlpha(0xffbce7ff,(int)(alpha*(.3f+.35f*(1+Math.sin(i+phase*6.28f))/2))));canvas.drawCircle(sx,sy,dp(i%3==0?1.5f:.8f),cinematic);}
+            } else {
+                cinematic.setStyle(Paint.Style.STROKE);cinematic.setStrokeWidth(dp(2));
+                for(int i=0;i<4;i++){cinematic.setColor(withAlpha(tint,alpha/(3+i)));float radius=w*(.12f+i*.07f+phase*.05f);canvas.drawCircle(w*.70f,h*.74f,radius,cinematic);}
+            }
+            cinematic.setStyle(Paint.Style.FILL);cinematic.setTypeface(cinemaFont);
+            cinematic.setTextSize(Math.min(w*.075f,dp(66)));cinematic.setTextAlign(Paint.Align.CENTER);
+            cinematic.setColor(withAlpha(0xffeaf1ff,110));
+            String name=brandKey.contains("netflix")?"NETFLIX":brandLabel;
+            float textWidth=cinematic.measureText(name);if(textWidth>w*.72f)cinematic.setTextSize(cinematic.getTextSize()*w*.72f/textWidth);
+            canvas.drawText(name,w*.58f,h*.80f,cinematic);
         }
     }
 }
