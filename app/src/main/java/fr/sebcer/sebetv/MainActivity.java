@@ -264,7 +264,7 @@ public class MainActivity extends Activity {
     private void appOptions(ResolveInfo app) {
         String pkg=app.activityInfo.packageName; boolean hidden=hiddenApps().contains(pkg), selected=homeSelection().contains(pkg);
         new AlertDialog.Builder(this).setTitle(app.loadLabel(getPackageManager()))
-            .setItems(new String[]{"Déplacer",hidden?"Afficher sur l’accueil":"Masquer de l’accueil", selected?"Retirer de la sélection":"Mettre en avant", "Choisir une vidéo de fond", "Retirer la vidéo de fond"},(d,which)-> {
+            .setItems(new String[]{"Déplacer",hidden?"Afficher sur l’accueil":"Masquer de l’accueil", selected?"Retirer de la sélection":"Mettre en avant", "Choisir une vidéo de fond", "Utiliser le fond intégré"},(d,which)-> {
                 if(which==0) {
                     movingPackage=pkg;
                     Toast.makeText(this,"Gauche / droite pour déplacer · OK pour terminer",Toast.LENGTH_LONG).show();
@@ -373,7 +373,17 @@ public class MainActivity extends Activity {
         landscape.tintTo(appColors.getOrDefault(pkg,baseTint()));
         boolean motion=resumed && prefs.getBoolean("motion",true);
         landscape.setMotion(motion);
-        if(backgroundVideo!=null)backgroundVideo.select(motion?prefs.getString("video_"+pkg,""):"");
+        if(backgroundVideo!=null)backgroundVideo.select(motion?prefs.getString("video_"+pkg,builtInVideo(pkg,label)):"");
+    }
+    private String builtInVideo(String pkg,String label) {
+        String key=(pkg+" "+label).toLowerCase(Locale.ROOT);
+        int resource=0;
+        if(key.contains("netflix"))resource=R.raw.intro_netflix;
+        else if(key.contains("disney"))resource=R.raw.intro_disney;
+        else if(key.contains("crunchyroll"))resource=R.raw.intro_crunchyroll;
+        else if(key.contains("canal"))resource=R.raw.intro_canal;
+        else if(key.contains("youtube") && !key.contains("music"))resource=R.raw.intro_youtube;
+        return resource==0?"":android.content.ContentResolver.SCHEME_ANDROID_RESOURCE+"://"+getPackageName()+"/"+resource;
     }
     private void chooseVideo(String pkg) {
         Intent intent=new Intent(Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("video/*")

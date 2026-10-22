@@ -2,19 +2,28 @@
 
 Accueil Android TV gratuit, local et sans publicité.
 
-## Version 0.6
-- Accueil allégé : uniquement les applications choisies, sans grille d’applications système en dessous. Gestion des applications et raccourcis dans Réglages ; liste complète dans Applications.
-- Fonds animés intégrés : rideaux de lumière rouges pour Netflix, arc étoilé bleu pour Disney+, ondes aux couleurs des autres applications. Il s’agit d’animations originales, pas des génériques officiels.
-- Appui long sur une tuile → **Choisir une vidéo de fond** : associer un fichier vidéo accessible à la télévision (stockage local ou clé USB via le sélecteur Android). Les génériques officiels ne sont pas fournis.
-- Vidéo en boucle, sans son, lancée après un court délai sur la tuile ; arrêt quand on change de sélection ou quitte Sébé TV.
-- Appui long → **Retirer la vidéo de fond** pour revenir à l’animation intégrée.
-- Ambiance → **Désactiver les fonds animés** pour revenir à un fond fixe.
-- Si un fichier devient inaccessible ou illisible, retour à l’animation intégrée. Le sélecteur de fichiers compatible Android et le décodage du fichier doivent être disponibles sur la TV.
+## Version 0.7
+- Les cinq vidéos fournies sont embarquées dans l’application : Netflix, Disney+, CANAL+, Crunchyroll et YouTube.
+- À la sélection d’une tuile, sa vidéo démarre automatiquement après 450 ms et tourne en boucle sans son. Aucune sélection de fichier ni connexion Internet nécessaire pour ces vidéos intégrées.
+- Les fichiers ont été adaptés en H.264, 960 × 540, 24 images/s, sans piste audio. Le cadrage complet est conservé, avec bandes noires si nécessaire.
+- Une vidéo personnalisée déjà choisie reste prioritaire. Appui long → **Utiliser le fond intégré** pour revenir à la vidéo fournie.
+- Apple TV et les autres applications conservent les fonds animés de la version 0.6.
+- L’accueil conserve uniquement les applications choisies. Toutes les autres restent dans Applications.
+- Ambiance → **Désactiver les fonds animés** désactive aussi les vidéos. Le lecteur est arrêté dès que Sébé TV passe en arrière-plan.
 
-[Télécharger Sébé TV 0.6](https://github.com/Sebcer19/SebeTV/raw/refs/heads/main/SebeTV-0.6.apk)
+[Télécharger Sébé TV 0.7](https://github.com/Sebcer19/SebeTV/raw/refs/heads/main/SebeTV-0.7.apk)
+
+### Vidéos fournies pour ce projet
+| Application | Fichier source fourni |
+| --- | --- |
+| Netflix | Netflix - Netflix New Logo Animation 2019.mp4 |
+| Disney+ | Meme Lord - Disney+ Logo (March 27, 2024-present).mp4 |
+| CANAL+ | nomeslogos - Canal Plus.mp4 |
+| Crunchyroll | Match & Pencil Studios - Crunchyroll Logo.mp4 |
+| YouTube | Intbar - YouTube on TV Startup Sound (Full).mp4 |
 
 ## Installation
-Depuis les versions **0.3, 0.4 ou 0.5**, installer la 0.6 directement par-dessus : même clé de signature, réglages conservés.
+Depuis les versions **0.3 à 0.6**, installer la 0.7 directement par-dessus : même clé de signature, réglages conservés.
 
 Depuis la version **0.1 ou 0.2**, désinstaller l’ancienne version avant l’installation. Leur clé de développement n’a pas été conservée. Les réglages de cette ancienne installation seront perdus : notez votre sélection avant de désinstaller. La clé dédiée utilisée depuis 0.3 est sauvegardée séparément de ce dépôt.
 
@@ -29,4 +38,4 @@ Pour un essai avec votre propre clé de développement : `./gradlew assembleDebu
 
 Pour une version signée avec la clé dédiée : définir `SEBETV_KEYSTORE` (chemin absolu), `SEBETV_STORE_PASSWORD` et `SEBETV_KEY_PASSWORD`, puis lancer `./gradlew assembleRelease lintRelease`. Alias de clé : `sebetv`. Ne jamais publier le fichier de clé ni ses mots de passe.
 
-La compilation et la vérification de signature ne remplacent pas un essai sur télévision. La nouvelle interface 0.6 reste à vérifier sur appareil.
+La compilation et la vérification de signature ne remplacent pas un essai sur télévision. La lecture des vidéos intégrées reste à vérifier sur télévision.
