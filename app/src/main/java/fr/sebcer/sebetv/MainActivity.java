@@ -110,10 +110,11 @@ public class MainActivity extends Activity {
             Toast.makeText(this,"Vidéo indisponible : animation intégrée utilisée.",Toast.LENGTH_SHORT).show();
         },()-> {if(landscape!=null)landscape.setMotion(false);});
         frame.addView(backgroundVideo,new FrameLayout.LayoutParams(-1,-1));
-        View shade=new View(this); GradientDrawable shadeBg=new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,new int[]{0x99050a13,0x33050a13,0x55050a13});shade.setBackground(shadeBg);
+        View shade=new View(this); GradientDrawable shadeBg=new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,new int[]{0x99050a13,0x00050a13,0xdd050a13});shade.setBackground(shadeBg);
         frame.addView(shade,new FrameLayout.LayoutParams(-1,-1));
         LinearLayout shell = new LinearLayout(this); shell.setOrientation(LinearLayout.VERTICAL);
-        shell.setPadding(dp(38),dp(24),dp(38),dp(14)); frame.addView(shell);
+        shell.setPadding(dp(38),dp(24),dp(38),dp(20));
+        frame.addView(shell,new FrameLayout.LayoutParams(-1,-1));
         LinearLayout header = new LinearLayout(this); header.setGravity(Gravity.CENTER_VERTICAL);
         TextView brand = text("SÉBÉ TV", 19, accents[theme]); brand.setTypeface(null, Typeface.BOLD);
         header.addView(brand, new LinearLayout.LayoutParams(0,-2,1));
@@ -126,7 +127,10 @@ public class MainActivity extends Activity {
         View rule = new View(this); rule.setBackgroundColor(0x224e5a70);
         LinearLayout.LayoutParams ruleParams = new LinearLayout.LayoutParams(-1,dp(1)); ruleParams.topMargin=dp(17); shell.addView(rule,ruleParams);
         ScrollView scroll = new ScrollView(this); scroll.setClipToPadding(false); scroll.setVerticalScrollBarEnabled(false);
+        scroll.setFillViewport(true);
         content = new LinearLayout(this); content.setOrientation(LinearLayout.VERTICAL); content.setPadding(dp(5),dp(20),dp(5),dp(12));
+        // Keep the cinema background clear; the full application catalog stays top-aligned.
+        content.setGravity(allApps ? Gravity.TOP : Gravity.BOTTOM);
         scroll.addView(content); shell.addView(scroll,new LinearLayout.LayoutParams(-1,0,1));
         Set<String> selection = homeSelection();
         if (allApps) {
