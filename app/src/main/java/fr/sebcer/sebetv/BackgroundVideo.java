@@ -31,6 +31,7 @@ final class BackgroundVideo extends TextureView implements TextureView.SurfaceTe
     }
     void stop() { handler.removeCallbacks(start); source="";release(); }
     private void release() {
+        animate().cancel();
         setAlpha(0f);
         if(player!=null) { player.setOnPreparedListener(null);player.setOnInfoListener(null);player.setOnErrorListener(null);player.release();player=null; }
         if(surface!=null) {surface.release();surface=null;}
@@ -43,22 +44,22 @@ final class BackgroundVideo extends TextureView implements TextureView.SurfaceTe
             final MediaPlayer current=new MediaPlayer();player=current;
             surface=new Surface(getSurfaceTexture());current.setSurface(surface);
             current.setVolume(0f,0f);current.setLooping(true);
-            current.setOnPreparedListener(mp->{if(player==mp){videoWidth=mp.getVideoWidth();videoHeight=mp.getVideoHeight();crop();mp.start();}});
+            current.setOnPreparedListener(mp->{if(player==mp){videoWidth=mp.getVideoWidth();videoHeight=mp.getVideoHeight();fit();mp.start();}});
             current.setOnInfoListener((mp,what,extra)->{
-                if(player==mp && what==MediaPlayer.MEDIA_INFO_VIDEO_RENDERING_START){setAlpha(1f);visible.run();}
+                if(player==mp && what==MediaPlayer.MEDIA_INFO_VIDEO_RENDERING_START){animate().alpha(1f).setDuration(300).start();visible.run();}
                 return false;
             });
             current.setOnErrorListener((mp,what,extra)->{if(player==mp){release();fallback.run();}return true;});
             current.setDataSource(getContext(),Uri.parse(source));current.prepareAsync();
         } catch(Exception e) {release();fallback.run();}
     }
-    private void crop() {
+    private void fit() {
         if(videoWidth<=0 || videoHeight<=0 || getWidth()==0 || getHeight()==0)return;
-        float scale=Math.max((float)getWidth()/videoWidth,(float)getHeight()/videoHeight);
+        float scale=Math.min((float)getWidth()/videoWidth,(float)getHeight()/videoHeight);
         Matrix matrix=new Matrix();matrix.setScale(videoWidth*scale/getWidth(),videoHeight*scale/getHeight(),getWidth()/2f,getHeight()/2f);setTransform(matrix);
     }
     @Override public void onSurfaceTextureAvailable(SurfaceTexture t,int w,int h) {if(!source.isEmpty())handler.postDelayed(start,450);}
-    @Override public void onSurfaceTextureSizeChanged(SurfaceTexture t,int w,int h) {crop();}
+    @Override public void onSurfaceTextureSizeChanged(SurfaceTexture t,int w,int h) {fit();}
     @Override public boolean onSurfaceTextureDestroyed(SurfaceTexture t) {stop();return true;}
     @Override public void onSurfaceTextureUpdated(SurfaceTexture t) { }
     @Override protected void onDetachedFromWindow() {stop();super.onDetachedFromWindow();}

@@ -24,6 +24,20 @@ public class MainActivity extends Activity {
     private BackgroundVideo backgroundVideo;
     private String pendingVideoPackage;
     private boolean resumed;
+    private final Handler cinemaHandler = new Handler(Looper.getMainLooper());
+    private View cinemaControls, cinemaShade;
+    private boolean cinemaHidden, wakeTouch;
+    private int wakeKey = KeyEvent.KEYCODE_UNKNOWN;
+    private final Runnable cinemaTimeout = () -> {
+        if (!resumed || allApps || movingPackage != null || !hasWindowFocus()
+                || !prefs.getBoolean("cinema_auto", true) || cinemaControls == null) return;
+        android.view.accessibility.AccessibilityManager accessibility =
+                (android.view.accessibility.AccessibilityManager)getSystemService(ACCESSIBILITY_SERVICE);
+        if (accessibility != null && accessibility.isEnabled()) return;
+        cinemaHidden = true;
+        cinemaControls.animate().alpha(0f).setDuration(450).start();
+        cinemaShade.animate().alpha(0f).setDuration(450).start();
+    };
     private int focusColor;
     private final Map<String,Integer> appColors = new HashMap<>();
     private final int[] accents = {0xffe8b778, 0xffa9b8ff, 0xff84dbc9};
@@ -43,9 +57,51 @@ public class MainActivity extends Activity {
     @Override protected void onResume() { super.onResume(); resumed=true; reloadApps(); render(); }
     @Override protected void onPause() {
         resumed=false;
+        showCinemaControls();
+        cinemaHandler.removeCallbacks(cinemaTimeout);
         if(backgroundVideo!=null)backgroundVideo.stop();
         if(landscape!=null)landscape.setMotion(false);
         super.onPause();
+    }
+    private void showCinemaControls() {
+        cinemaHidden = false;
+        if (cinemaControls != null) {
+            cinemaControls.animate().cancel(); cinemaControls.setAlpha(1f);
+        }
+        if (cinemaShade != null) {
+            cinemaShade.animate().cancel(); cinemaShade.setAlpha(1f);
+        }
+    }
+    private void scheduleCinema() {
+        cinemaHandler.removeCallbacks(cinemaTimeout);
+        if (resumed && !allApps && movingPackage == null && hasWindowFocus()
+                && prefs.getBoolean("cinema_auto", true))
+            cinemaHandler.postDelayed(cinemaTimeout, 8000);
+    }
+    @Override public void onWindowFocusChanged(boolean focused) {
+        super.onWindowFocusChanged(focused);
+        cinemaHandler.removeCallbacks(cinemaTimeout);
+        showCinemaControls();
+        if (focused) { wakeKey = KeyEvent.KEYCODE_UNKNOWN; wakeTouch = false; scheduleCinema(); }
+    }
+    @Override public void onUserInteraction() {
+        super.onUserInteraction();
+        scheduleCinema();
+    }
+    @Override public boolean dispatchTouchEvent(MotionEvent event) {
+        if (event.getActionMasked() == MotionEvent.ACTION_DOWN && cinemaHidden) {
+            wakeTouch = true; showCinemaControls(); scheduleCinema();
+        }
+        if (wakeTouch) {
+            if (event.getActionMasked() == MotionEvent.ACTION_UP
+                    || event.getActionMasked() == MotionEvent.ACTION_CANCEL) wakeTouch = false;
+            return true;
+        }
+        return super.dispatchTouchEvent(event);
+    }
+    @Override protected void onDestroy() {
+        cinemaHandler.removeCallbacksAndMessages(null);
+        super.onDestroy();
     }
     private void reloadApps() {
         apps.clear();
@@ -98,6 +154,8 @@ public class MainActivity extends Activity {
         return false;
     }
     private void render() {
+        cinemaHandler.removeCallbacks(cinemaTimeout);
+        showCinemaControls();
         theme = prefs.getInt("theme", 0);
         sortApps();
         focusColor = accents[theme]; appColors.clear();
@@ -111,8 +169,10 @@ public class MainActivity extends Activity {
         },()-> {if(landscape!=null)landscape.setMotion(false);});
         frame.addView(backgroundVideo,new FrameLayout.LayoutParams(-1,-1));
         View shade=new View(this); GradientDrawable shadeBg=new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,new int[]{0x99050a13,0x00050a13,0xdd050a13});shade.setBackground(shadeBg);
+        cinemaShade = shade;
         frame.addView(shade,new FrameLayout.LayoutParams(-1,-1));
         LinearLayout shell = new LinearLayout(this); shell.setOrientation(LinearLayout.VERTICAL);
+        cinemaControls = shell;
         shell.setPadding(dp(38),dp(24),dp(38),dp(20));
         frame.addView(shell,new FrameLayout.LayoutParams(-1,-1));
         LinearLayout header = new LinearLayout(this); header.setGravity(Gravity.CENTER_VERTICAL);
@@ -153,6 +213,7 @@ public class MainActivity extends Activity {
         if (target == null && !allApps) target = firstCard(content);
         if (target == null) target = shell.findViewWithTag("apps");
         if (target != null) target.requestFocus();
+        scheduleCinema();
     }
     private View firstCard(ViewGroup parent) {
         for(int i=0;i<parent.getChildCount();i++) {
@@ -288,6 +349,24 @@ public class MainActivity extends Activity {
             }).setNegativeButton("Fermer",null).show();
     }
     @Override public boolean dispatchKeyEvent(KeyEvent event) {
+        int keyCode = event.getKeyCode();
+        if (wakeKey == keyCode) {
+            if (event.getAction() == KeyEvent.ACTION_UP) wakeKey = KeyEvent.KEYCODE_UNKNOWN;
+            scheduleCinema();
+            return true;
+        }
+        if (cinemaHidden && event.getAction() == KeyEvent.ACTION_DOWN) {
+            showCinemaControls(); scheduleCinema();
+            // Waking the screen must never launch an app or trigger a long press.
+            if (keyCode == KeyEvent.KEYCODE_DPAD_CENTER || keyCode == KeyEvent.KEYCODE_ENTER
+                    || keyCode == KeyEvent.KEYCODE_NUMPAD_ENTER || keyCode == KeyEvent.KEYCODE_BACK
+                    || keyCode == KeyEvent.KEYCODE_DPAD_UP || keyCode == KeyEvent.KEYCODE_DPAD_DOWN
+                    || keyCode == KeyEvent.KEYCODE_DPAD_LEFT || keyCode == KeyEvent.KEYCODE_DPAD_RIGHT) {
+                wakeKey = keyCode;
+                return true;
+            }
+        }
+        scheduleCinema();
         if(movingPackage!=null) {
             int key=event.getKeyCode();
             if(key==KeyEvent.KEYCODE_BACK || key==KeyEvent.KEYCODE_DPAD_CENTER || key==KeyEvent.KEYCODE_ENTER) {
@@ -331,11 +410,12 @@ public class MainActivity extends Activity {
         }).setNegativeButton("Fermer",null).show();
     }
     private void ambianceMenu() {
-        new AlertDialog.Builder(this).setTitle("Ambiance").setItems(new String[]{"Choisir le thème","Intensité du halo","Ambiance plein écran",prefs.getBoolean("motion",true)?"Désactiver les fonds animés":"Activer les fonds animés"},(d,which)-> {
+        new AlertDialog.Builder(this).setTitle("Ambiance").setItems(new String[]{"Choisir le thème","Intensité du halo","Ambiance plein écran",prefs.getBoolean("motion",true)?"Désactiver les fonds animés":"Activer les fonds animés",prefs.getBoolean("cinema_auto",true)?"Désactiver le mode cinéma automatique":"Activer le mode cinéma automatique"},(d,which)-> {
             if(which==0)chooseTheme();
             if(which==1)preference("Intensité du halo","halo",new String[]{"Désactivé","Doux","Équilibré","Intense"},2);
             if(which==2)ambient();
             if(which==3){prefs.edit().putBoolean("motion",!prefs.getBoolean("motion",true)).apply();render();}
+            if(which==4){prefs.edit().putBoolean("cinema_auto",!prefs.getBoolean("cinema_auto",true)).apply();render();}
         }).setNegativeButton("Fermer",null).show();
     }
     private void ambient() {

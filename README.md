@@ -2,19 +2,21 @@
 
 Accueil Android TV gratuit, local et sans publicité.
 
-## Version 0.9
+## Version 0.10
+- Mode cinéma automatique : après 8 secondes sans action sur l’accueil, les menus, tuiles et le voile sombre s’effacent. Les flèches, OK ou Retour les réaffichent sans lancer une application. Désactivation dans Ambiance. Le mode est suspendu dans Applications, les dialogues, le déplacement des tuiles et quand un service d’accessibilité est actif.
+- Vidéos d’origine conservées sans réencodage, à 30 images/s : suppression de la compression et de la conversion à 24 images/s des versions précédentes. Apparition progressive et cadrage complet sans étirement.
 - Les applications de l’accueil sont alignées en bas de l’écran pour dégager le centre des animations.
 - Un dégradé assombrit le bas de l’écran pour garder les tuiles lisibles. Le catalogue Applications conserve sa grille en haut.
 
 - Les six vidéos fournies sont embarquées dans l’application : Netflix, Disney+, CANAL+, Crunchyroll, YouTube et Apple TV.
 - À la sélection d’une tuile, sa vidéo démarre automatiquement après 450 ms et tourne en boucle sans son. Aucune sélection de fichier ni connexion Internet nécessaire pour ces vidéos intégrées.
-- Les fichiers ont été adaptés en H.264, 960 × 540, 24 images/s, sans piste audio. Le cadrage complet est conservé, avec bandes noires si nécessaire.
+- Les pistes vidéo H.264 d’origine sont reprises à l’identique, sans piste audio : 910 × 512 pour cinq vidéos et 1228 × 512 pour CANAL+. Ce ne sont pas des sources HD ou 4K ; cette mise à jour ne recrée pas les détails absents des fichiers fournis.
 - Une vidéo personnalisée déjà choisie reste prioritaire. Appui long → **Utiliser le fond intégré** pour revenir à la vidéo fournie.
 - Les autres applications conservent les fonds animés de la version 0.6.
 - L’accueil conserve uniquement les applications choisies. Toutes les autres restent dans Applications.
 - Ambiance → **Désactiver les fonds animés** désactive aussi les vidéos. Le lecteur est arrêté dès que Sébé TV passe en arrière-plan.
 
-[Télécharger Sébé TV 0.9](https://github.com/Sebcer19/SebeTV/raw/refs/heads/main/SebeTV-0.9.apk)
+[Télécharger Sébé TV 0.10](https://github.com/Sebcer19/SebeTV/raw/refs/heads/main/SebeTV-0.10.apk)
 
 ### Vidéos fournies pour ce projet
 | Application | Fichier source fourni |
@@ -27,7 +29,7 @@ Accueil Android TV gratuit, local et sans publicité.
 | Apple TV | Apple TV - This is just the beginning..mp4 |
 
 ## Installation
-Depuis les versions **0.3 à 0.8**, installer la 0.9 directement par-dessus : même clé de signature, réglages conservés.
+Depuis les versions **0.3 à 0.9**, installer la 0.10 directement par-dessus : même clé de signature, réglages conservés.
 
 Depuis la version **0.1 ou 0.2**, désinstaller l’ancienne version avant l’installation. Leur clé de développement n’a pas été conservée. Les réglages de cette ancienne installation seront perdus : notez votre sélection avant de désinstaller. La clé dédiée utilisée depuis 0.3 est sauvegardée séparément de ce dépôt.
 
