@@ -380,6 +380,7 @@ public class MainActivity extends Activity {
         int resource=0;
         if(key.contains("netflix"))resource=R.raw.intro_netflix;
         else if(key.contains("disney"))resource=R.raw.intro_disney;
+        else if(pkg.startsWith("com.apple.atve") || label.equalsIgnoreCase("Apple TV") || label.equalsIgnoreCase("Apple TV+"))resource=R.raw.intro_apple;
         else if(key.contains("crunchyroll"))resource=R.raw.intro_crunchyroll;
         else if(key.contains("canal"))resource=R.raw.intro_canal;
         else if(key.contains("youtube") && !key.contains("music"))resource=R.raw.intro_youtube;

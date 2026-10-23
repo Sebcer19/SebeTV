@@ -2,16 +2,16 @@
 
 Accueil Android TV gratuit, local et sans publicité.
 
-## Version 0.7
-- Les cinq vidéos fournies sont embarquées dans l’application : Netflix, Disney+, CANAL+, Crunchyroll et YouTube.
+## Version 0.8
+- Les six vidéos fournies sont embarquées dans l’application : Netflix, Disney+, CANAL+, Crunchyroll, YouTube et Apple TV.
 - À la sélection d’une tuile, sa vidéo démarre automatiquement après 450 ms et tourne en boucle sans son. Aucune sélection de fichier ni connexion Internet nécessaire pour ces vidéos intégrées.
 - Les fichiers ont été adaptés en H.264, 960 × 540, 24 images/s, sans piste audio. Le cadrage complet est conservé, avec bandes noires si nécessaire.
 - Une vidéo personnalisée déjà choisie reste prioritaire. Appui long → **Utiliser le fond intégré** pour revenir à la vidéo fournie.
-- Apple TV et les autres applications conservent les fonds animés de la version 0.6.
+- Les autres applications conservent les fonds animés de la version 0.6.
 - L’accueil conserve uniquement les applications choisies. Toutes les autres restent dans Applications.
 - Ambiance → **Désactiver les fonds animés** désactive aussi les vidéos. Le lecteur est arrêté dès que Sébé TV passe en arrière-plan.
 
-[Télécharger Sébé TV 0.7](https://github.com/Sebcer19/SebeTV/raw/refs/heads/main/SebeTV-0.7.apk)
+[Télécharger Sébé TV 0.8](https://github.com/Sebcer19/SebeTV/raw/refs/heads/main/SebeTV-0.8.apk)
 
 ### Vidéos fournies pour ce projet
 | Application | Fichier source fourni |
@@ -21,9 +21,10 @@ Accueil Android TV gratuit, local et sans publicité.
 | CANAL+ | nomeslogos - Canal Plus.mp4 |
 | Crunchyroll | Match & Pencil Studios - Crunchyroll Logo.mp4 |
 | YouTube | Intbar - YouTube on TV Startup Sound (Full).mp4 |
+| Apple TV | Apple TV - This is just the beginning..mp4 |
 
 ## Installation
-Depuis les versions **0.3 à 0.6**, installer la 0.7 directement par-dessus : même clé de signature, réglages conservés.
+Depuis les versions **0.3 à 0.7**, installer la 0.8 directement par-dessus : même clé de signature, réglages conservés.
 
 Depuis la version **0.1 ou 0.2**, désinstaller l’ancienne version avant l’installation. Leur clé de développement n’a pas été conservée. Les réglages de cette ancienne installation seront perdus : notez votre sélection avant de désinstaller. La clé dédiée utilisée depuis 0.3 est sauvegardée séparément de ce dépôt.
 
